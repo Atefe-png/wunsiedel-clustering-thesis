@@ -66,7 +66,7 @@ wunsiedel-clustering-thesis/
 ## Interactive map
 
 The clustering results can be explored interactively at:  
-🗺️ https://atefe-png.github.io/wunsiedel-dashboard/
+ https://atefe-png.github.io/wunsiedel-dashboard/
 
 ---
 
