@@ -1,0 +1,75 @@
+networks:
+  dockernet:
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+        
+services:
+  postgis:
+    image: postgis/postgis:16-3.4   # PostGIS Image
+    container_name: postgis_db
+    restart: always
+    environment:
+      POSTGRES_USER: adminuser
+      POSTGRES_PASSWORD: superstrongpassword
+      POSTGRES_DB: mygisdb
+    volumes:
+      - ./data/postgis:/var/lib/postgresql/data
+    networks:
+      dockernet:
+        ipv4_address: 172.20.0.5
+
+#####################################################################
+# http://localhost:8081/
+#####################################################################
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: adminpass
+    ports:
+      - 8081:80
+    depends_on:
+      - postgresql
+    volumes:
+      - ./data/pgadmin:/var/lib/pgadmin
+    networks:
+      dockernet:
+        ipv4_address: 172.20.0.4
+
+#####################################################################
+  postgresql:
+    image: postgres:alpine
+    container_name: postgresql
+    restart: always
+    environment:
+      POSTGRES_USER: adminuser
+      POSTGRES_PASSWORD: superstrongpassword
+      POSTGRES_DB: mydb
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - 5432:5432
+    volumes:
+      - ./data/postgresql:/var/lib/postgresql/data
+    networks:
+      dockernet:
+        ipv4_address: 172.20.0.2
+
+#####################################################################
+# http://localhost:8082/
+#####################################################################
+  db_admin:
+    image: adminer:latest
+    container_name: db_admin
+    restart: always
+    depends_on:
+      - postgresql
+    ports:
+      - 8082:8080
+    environment:
+      ADMINER_DEFAULT_SERVER: 172.20.0.2
+    networks:
+      dockernet:
+        ipv4_address: 172.20.0.3
