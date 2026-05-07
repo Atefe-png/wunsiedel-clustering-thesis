@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HDBSCAN Dashboard – Wunsiedel</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<div class="banner">
+  <div class="banner-left">
+    <div class="banner-method">HDBSCAN</div>
+    <div class="banner-info">
+      <span class="b-stat"><span class="b-val">11</span> Zones</span>
+      <span class="b-sep">·</span>
+      <span class="b-stat"><span class="b-val">904</span> Noise POIs (33.8%)</span>
+      <span class="b-sep">·</span>
+      <span class="b-stat">mpts = mclSize = <span class="b-val">50</span></span>
+    </div>
+  </div>
+  <div class="banner-right">
+    <div class="banner-title">POI Attraction Weights</div>
+    <div class="banner-sub">Landkreis Wunsiedel · OSM Nov 2025 · 2,673 POIs</div>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- LEFT PANEL -->
+  <div class="lpanel">
+
+    <!-- Category Filter -->
+    <div class="pb">
+      <div class="ptitle">Filter nach Kategorie</div>
+      <div id="cat-btns"></div>
+      <button class="reset-btn" onclick="resetCats()">Alle anzeigen</button>
+    </div>
+
+    <!-- fclass sub-filter -->
+    <div class="pb">
+      <div class="ptitle">Filter nach fclass</div>
+      <select id="sf" onchange="draw()">
+        <option value="">Alle fclasses (107)</option>
+      </select>
+    </div>
+
+    <!-- Weight scale legend -->
+    <div class="pb">
+      <div class="ptitle">Attraction Weight W<sub>c</sub></div>
+      <div class="weight-legend">
+        <div class="wleg-row">
+          <div class="wleg-dot" style="width:5px;height:5px"></div>
+          <span>Niedrig (&lt; 100)</span>
+        </div>
+        <div class="wleg-row">
+          <div class="wleg-dot" style="width:9px;height:9px"></div>
+          <span>Mittel (100–500)</span>
+        </div>
+        <div class="wleg-row">
+          <div class="wleg-dot" style="width:13px;height:13px"></div>
+          <span>Hoch (500–1500)</span>
+        </div>
+        <div class="wleg-row">
+          <div class="wleg-dot" style="width:18px;height:18px"></div>
+          <span>Sehr hoch (&gt; 1500)</span>
+        </div>
+      </div>
+      <div class="ptitle" style="margin-top:12px">Cluster / Noise</div>
+      <div class="wleg-row"><div class="wleg-dot noise-dot"></div><span>Noise (cluster −1)</span></div>
+      <label class="cbrow" style="margin-top:8px">
+        <input type="checkbox" id="cbn" onchange="draw()" checked>
+        Noise-Punkte zeigen
+      </label>
+    </div>
+
+    <!-- Category legend -->
+    <div class="pb">
+      <div class="ptitle">Kategorie-Legende</div>
+      <div id="cleg"></div>
+    </div>
+
+    <!-- POI info -->
+    <div class="pb">
+      <div class="ptitle">Ausgewählter POI</div>
+      <div class="ibox" id="ibox">
+        <span class="hint">Auf einen Punkt klicken …</span>
+      </div>
+    </div>
+
+    <div class="cnt" id="pcnt">— POIs angezeigt</div>
+
+  </div>
+
+  <!-- MAP -->
+  <div id="map">
+    <div class="mctrl">
+      <button class="cbtn" onclick="fitDistrict()">⤢ Gesamtansicht</button>
+    </div>
+    <div class="msrc">© OpenStreetMap · Masterarbeit Atefeh Zaeemi, BHT 2026</div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
