@@ -1,0 +1,30 @@
+# Large binary / geodata files
+*.gpkg
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.qmd
+*.aux.xml
+
+# Raw OSM downloads
+data/raw/
+
+# Python environment
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Temporary / personal files
+*.tmp
+~$*
+*.xlsb
+*.m4a
+*.mp4
+*.mp3
+
+# OS files
+.DS_Store
+Thumbs.db
