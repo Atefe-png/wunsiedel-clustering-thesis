@@ -126,7 +126,8 @@ wunsiedel-atStake/
 │   ├── kmeans_clustering.py          ← K-Means clustering (k=13)
 │   ├── dbscan_clustering.py          ← DBSCAN (3 sensitivity runs)
 │   ├── hdbscan_clustering.py         ← HDBSCAN (mpts=mclSize=50)
-│   └── compute_validation_metrics.py ← Silhouette + DB Index
+│   ├── compute_validation_metrics.py ← Silhouette + DB Index
+│   └── attraction_aggregation.py     ← W_c = sum(w_i) per zone
 │
 ├── data/
 │   └── processed/
@@ -185,6 +186,9 @@ python scripts/hdbscan_clustering.py
 
 # Step 5 — Compute validation metrics
 python scripts/compute_validation_metrics.py
+
+# Step 6 — Compute attraction weights per zone
+python scripts/attraction_aggregation.py
 ```
 
 All outputs are saved automatically to `outputs/`.
