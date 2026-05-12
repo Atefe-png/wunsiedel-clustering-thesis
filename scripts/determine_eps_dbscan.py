@@ -1,149 +1,142 @@
 """
 ============================================================
-DBSCAN Parameter Selection — Sorted k-dist Graph
+DBSCAN Parameter Selection — k-distance Graph
 ------------------------------------------------------------
-Thesis Section 5c — Parameter Selection for DBSCAN
-Based on: Ester et al. (1996), KDD-96
+Thesis: Zaeemi (2026), Section 5c.2
+Author: Atefeh Zaeemi, BHT Berlin, in cooperation with atSTAKE
 
-This script computes the sorted 4-dist graph as proposed in
-the original DBSCAN paper and helps visually identify the
-elbow point that determines the optimal Eps value.
+HOW ε=515m WAS DETERMINED
+--------------------------
+DBSCAN needs eps (ε) — the neighbourhood search radius in
+metres — and MinPts. This script reproduces the full
+parameter selection process.
 
-Input:  wue_poi_clean.gpkg (EPSG:25832, units: metres)
-Output: - kdist_graph.png / .pdf  (for thesis figure)
-        - console output with suggested Eps values
+Step 1 — MinPts = 5 (fixed):
+  MinPts=5 is the standard recommendation for 2D spatial
+  point data (Ester et al. 1996). It was not tuned further.
+
+Step 2 — ε via k-distance graph:
+  For each of the 2,673 POIs, the distance to its k-th
+  nearest neighbour (k = MinPts - 1 = 4) was computed.
+  These distances were sorted in descending order and plotted.
+  The "elbow" in this curve marks the natural density
+  threshold between dense regions (clusters) and sparse
+  regions (noise). The elbow was detected automatically
+  using the Kneedle algorithm and confirmed visually at
+  approximately 515 metres.
+
+Step 3 — Sensitivity analysis:
+  Three runs were executed: ε = 412m (-20%), 515m (primary),
+  618m (+20%). Run 2 (515m) was selected because it produced
+  the best spatial coherence for rural Wunsiedel.
+
+Important: DBSCAN is applied in raw EPSG:25832 metres,
+NOT standardised coordinates. This means ε is directly
+interpretable as a real-world distance.
+
+Input:  data/processed/wue_poi_clean.gpkg
+Output: outputs/dbscan_kdist_graph.png / .pdf
+        console: suggested ε with ±20% range
 ============================================================
 """
 
+import os
+import warnings
+import matplotlib
+matplotlib.use("Agg")
 import geopandas as gpd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.neighbors import NearestNeighbors
-from kneed import KneeLocator
-import os
-import warnings
 
 warnings.filterwarnings("ignore")
 
-# ─────────────────────────────────────────────────────────────
-# CONFIGURATION
-# ─────────────────────────────────────────────────────────────
+# ── Paths ────────────────────────────────────────────────────
+ROOT      = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+GPKG_PATH = os.path.join(ROOT, "data", "processed", "wue_poi_clean.gpkg")
+OUT_DIR   = os.path.join(ROOT, "outputs")
+os.makedirs(OUT_DIR, exist_ok=True)
 
-GPKG_PATH  = r"C:\Users\atefe\OneDrive\Desktop\Beuth\Masterarbeit\OSM\Data Proc\wue_poi_clean.gpkg"
-OUTPUT_DIR = r"C:\Users\atefe\OneDrive\Desktop\Beuth\Masterarbeit\cluster_analysis"
+K      = 4       # k for k-dist (= MinPts - 1, per Ester et al. 1996)
+MINPTS = 5
 
-K          = 4        # As recommended by Ester et al. (1996) for 2D data
-MINPTS     = 5        # MinPts used in the actual DBSCAN run
-
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
-# ─────────────────────────────────────────────────────────────
-# 1. LOAD & EXTRACT COORDINATES
-# ─────────────────────────────────────────────────────────────
-
+# ── 1. Load data (raw metres, no standardisation) ─────────────
 print("Loading data ...")
 gdf = gpd.read_file(GPKG_PATH)
-print(f"  Features loaded : {len(gdf)}")
-print(f"  CRS             : {gdf.crs}  (unit: metres)\n")
-
 coords = np.column_stack([gdf.geometry.x, gdf.geometry.y])
+print(f"  {len(gdf)} features | CRS: {gdf.crs} (metres)")
 
-# ─────────────────────────────────────────────────────────────
-# 2. COMPUTE k-dist (distance to k-th nearest neighbour)
-# ─────────────────────────────────────────────────────────────
-
-print(f"Computing {K}-dist for each point ...")
-nbrs = NearestNeighbors(n_neighbors=K + 1, algorithm="ball_tree", metric="euclidean")
+# ── 2. Compute k-distances ────────────────────────────────────
+print(f"\nComputing {K}-dist for each point ...")
+nbrs = NearestNeighbors(n_neighbors=K + 1, algorithm="ball_tree",
+                        metric="euclidean")
 nbrs.fit(coords)
 distances, _ = nbrs.kneighbors(coords)
+kdist = np.sort(distances[:, K])[::-1]   # descending
+print(f"  k-dist range: {kdist.min():.1f} m — {kdist.max():.1f} m")
+print(f"  Median k-dist: {np.median(kdist):.1f} m")
 
-# Distance to k-th nearest neighbour (index K, since index 0 = self)
-kdist = np.sort(distances[:, K])[::-1]   # descending order
-
-print(f"  k-dist range: {kdist.min():.1f} m  –  {kdist.max():.1f} m")
-print(f"  Median k-dist: {np.median(kdist):.1f} m\n")
-
-# ─────────────────────────────────────────────────────────────
-# 3. DETECT ELBOW (Kneedle algorithm)
-# ─────────────────────────────────────────────────────────────
-
+# ── 3. Auto-detect elbow ──────────────────────────────────────
 x_vals = np.arange(len(kdist))
-
+eps_suggested = None
+knee_idx = None
 try:
-    kneedle = KneeLocator(
-        x_vals, kdist,
-        curve="convex",
-        direction="decreasing",
-        interp_method="polynomial"
-    )
-    knee_idx = kneedle.knee
+    from kneed import KneeLocator
+    kl = KneeLocator(x_vals, kdist, curve="convex",
+                     direction="decreasing", interp_method="polynomial")
+    knee_idx = kl.knee
     eps_suggested = kdist[knee_idx] if knee_idx is not None else None
-except Exception:
-    knee_idx = None
-    eps_suggested = None
+    print(f"\n  Elbow detected at index {knee_idx}")
+    print(f"  Suggested eps = {eps_suggested:.1f} m")
+except ImportError:
+    print("\n  kneed not installed — install with: pip install kneed")
+    print("  Inspect the plot manually and read eps from the elbow.")
 
-# ─────────────────────────────────────────────────────────────
-# 4. PLOT
-# ─────────────────────────────────────────────────────────────
-
+# ── 4. Plot ───────────────────────────────────────────────────
 fig, ax = plt.subplots(figsize=(9, 4.5))
+ax.plot(x_vals, kdist, color="#1a3a5c", linewidth=1.5,
+        label=f"Sorted {K}-dist (distance to {K}th neighbour)")
 
-ax.plot(x_vals, kdist, color="#1a3a5c", linewidth=1.5, label=f"Sorted {K}-dist")
-
-if knee_idx is not None and eps_suggested is not None:
-    ax.axhline(eps_suggested, color="#c0392b", linewidth=1.4,
-               linestyle="--", label=f"Suggested $\\varepsilon$ = {eps_suggested:.0f} m")
-    ax.axvline(knee_idx, color="#c0392b", linewidth=0.8, linestyle=":")
-    ax.scatter([knee_idx], [eps_suggested], color="#c0392b", zorder=5, s=60)
-
-    # Also show ±20% sensitivity range
+if eps_suggested is not None:
     eps_low  = eps_suggested * 0.80
     eps_high = eps_suggested * 1.20
-    ax.axhline(eps_low,  color="#e67e22", linewidth=1.0, linestyle=":",
-               label=f"$\\varepsilon -20\\%$ = {eps_low:.0f} m")
-    ax.axhline(eps_high, color="#e67e22", linewidth=1.0, linestyle="-.",
-               label=f"$\\varepsilon +20\\%$ = {eps_high:.0f} m")
+    ax.axhline(eps_suggested, color="#c0392b", linewidth=1.5,
+               linestyle="--",
+               label=f"Suggested ε = {eps_suggested:.0f} m (elbow)")
+    ax.axhline(eps_low,  color="#e67e22", linewidth=1.0,
+               linestyle=":", label=f"ε −20% = {eps_low:.0f} m")
+    ax.axhline(eps_high, color="#e67e22", linewidth=1.0,
+               linestyle="-.", label=f"ε +20% = {eps_high:.0f} m")
+    if knee_idx is not None:
+        ax.scatter([knee_idx], [eps_suggested],
+                   color="#c0392b", zorder=5, s=60)
 
-ax.set_xlabel("Points sorted by decreasing distance", fontsize=11, fontfamily="serif")
-ax.set_ylabel(f"Distance to {K}-th nearest neighbour (m)", fontsize=11, fontfamily="serif")
-ax.set_title(f"Sorted {K}-dist Graph for DBSCAN $\\varepsilon$ Selection\n"
-             f"Landkreis Wunsiedel POI Dataset ($n = {len(gdf):,}$)",
+ax.set_xlabel("Points sorted by decreasing k-dist", fontsize=11,
+              fontfamily="serif")
+ax.set_ylabel(f"Distance to {K}th nearest neighbour (m)", fontsize=11,
+              fontfamily="serif")
+ax.set_title(f"Sorted {K}-dist Graph for DBSCAN ε Selection\n"
+             f"Landkreis Wunsiedel POI Dataset (n={len(gdf):,})",
              fontsize=12, fontfamily="serif")
 ax.legend(fontsize=9)
 ax.grid(True, color="#dddddd", linewidth=0.6, linestyle="--")
 ax.spines["top"].set_visible(False)
 ax.spines["right"].set_visible(False)
-
 plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, "dbscan_kdist_graph.png"), dpi=300)
+plt.savefig(os.path.join(OUT_DIR, "dbscan_kdist_graph.pdf"))
+plt.close()
 
-out_png = os.path.join(OUTPUT_DIR, "dbscan_kdist_graph.png")
-out_pdf = os.path.join(OUTPUT_DIR, "dbscan_kdist_graph.pdf")
-plt.savefig(out_png, dpi=300, bbox_inches="tight")
-plt.savefig(out_pdf, bbox_inches="tight")
-plt.show()
-
-# ─────────────────────────────────────────────────────────────
-# 5. SUMMARY
-# ─────────────────────────────────────────────────────────────
-
-print("=" * 55)
+# ── 5. Summary ────────────────────────────────────────────────
+print("\n" + "=" * 50)
 print("  DBSCAN PARAMETER RECOMMENDATION")
-print("=" * 55)
-print(f"  MinPts          : {MINPTS}  (fixed, 2D spatial data)")
-print(f"  k used for dist : {K}  (Ester et al. 1996)")
-
+print("=" * 50)
+print(f"  MinPts (fixed)   : {MINPTS}  (Ester et al. 1996)")
 if eps_suggested is not None:
-    print(f"\n  Suggested Eps   : {eps_suggested:.1f} m  (elbow/knee point)")
-    print(f"  Sensitivity low : {eps_suggested * 0.80:.1f} m  (-20%)")
-    print(f"  Sensitivity high: {eps_suggested * 1.20:.1f} m  (+20%)")
+    print(f"  Suggested eps    : {eps_suggested:.1f} m")
+    print(f"  Sensitivity low  : {eps_suggested*0.80:.1f} m (-20%)")
+    print(f"  Sensitivity high : {eps_suggested*1.20:.1f} m (+20%)")
     print()
-    print("  → Use these three values as runs 1, 2, 3 in Table 5.x")
-    print("    of your thesis (Section 5c, DBSCAN parameter table).")
-else:
-    print("\n  ⚠ No clear elbow detected automatically.")
-    print("    Please inspect the plot and choose Eps manually")
-    print("    at the first visible change in gradient.")
-
-print()
-print(f"  Plots saved to: {OUTPUT_DIR}")
-print("=" * 55)
+    print("  Run dbscan_clustering.py with all three values.")
+    print("  Primary result: Run 2 (eps=515m) — see thesis Section 5c.2")
+print(f"\nSaved: outputs/dbscan_kdist_graph.png")
